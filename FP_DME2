@@ -1,0 +1,100 @@
+/*
+ * Combined Small Open Economy Model
+ * Features:
+ * - Endogenous Discount Factor (Model 1)
+ * - Debt-Elastic Interest Rate Premium (Model 2)
+ * - Capital Adjustment Costs
+ *
+ * Based on Schmitt-Grohe & Uribe (2003)
+ */
+
+var c h y i k a lambda d tb_y ca_y r beta_fun;
+varexo e;
+
+parameters gamma omega psi_1 psi_2 alpha delta phi r_bar d_bar rho sigma_tfp;
+
+% Calibration from SGU (2003)
+gamma   = 2;           % Relative Risk Aversion
+omega   = 1.455;       % Labor disutility parameter
+psi_1   = 0.1;         % Elasticity of discount factor w.r.t. consumption
+psi_2   = 0.000742;    % Risk premium elasticity
+alpha   = 0.32;        % Capital share
+delta   = 0.1;         % Depreciation rate
+phi     = 0.028;       % Capital adjustment cost coefficient
+r_bar   = 0.04;        % World interest rate
+d_bar   = 0.7442;      % Steady-state debt-to-output ratio
+rho     = 0.42;        % TFP persistence
+sigma_tfp = 0.0129;    % TFP shock volatility
+
+model;
+
+    exp(d) = (1 + exp(r(-1))) * exp(d(-1)) + exp(c) + exp(i) + (phi/2)*((exp(k)-exp(k(-1)))/exp(k(-1)))^2*exp(k(-1)) - exp(y);
+    exp(y) = exp(a) * exp(k(-1))^alpha * exp(h)^(1-alpha);
+    exp(k) = exp(i) + (1-delta)*exp(k(-1));
+    exp(lambda) = beta_fun * (1 + exp(r)) * exp(lambda(+1));
+    exp(lambda) = (exp(c) - (exp(h)^omega)/omega)^(-gamma);
+    -(exp(c) - (exp(h)^omega)/omega)^(-gamma) * exp(h)^(omega - 1) = exp(lambda) * (1 - alpha) * exp(y) / exp(h);
+    exp(lambda) * (1 + phi*((exp(k)-exp(k(-1)))/exp(k(-1)))) = beta_fun * exp(lambda(+1)) * (alpha*exp(y(+1))/exp(k) + (1 - delta) + phi*((exp(k(+1))-exp(k))/exp(k)));
+    a = rho*a(-1) + sigma_tfp*e;
+    exp(r) = r_bar + psi_2*(exp(d) - d_bar);
+    beta_fun = (1 + exp(c) - (exp(h)^omega)/omega)^(-psi_1);
+    tb_y = (exp(y) - exp(c) - exp(i) - (phi/2)*((exp(k)-exp(k(-1)))/exp(k(-1)))^2*exp(k(-1))) / exp(y);
+    ca_y = (exp(d(-1)) - exp(d)) / exp(y);
+
+end;
+
+steady_state_model;
+
+    % TFP
+    a = 0;
+
+    % Net foreign debt
+    d = log(d_bar);  % d = d_bar in SS
+
+    % Domestic interest rate
+    r = log(r_bar);  % r = r_bar in SS
+
+    % Capital level from Cobb-Douglas and marginal product of capital
+    k_level = ((alpha) / (r_bar + delta))^(1/(1 - alpha));  % Assume A=1
+    k = log(k_level);
+
+    % Output
+    y_level = k_level^alpha;
+    y = log(y_level);
+
+    % Investment
+    i_level = delta * k_level;
+    i = log(i_level);
+
+    % Labor supply (calibrated value)
+    h_level = 0.3777;
+    h = log(h_level);
+
+    % Consumption from resource constraint
+    c_level = y_level - i_level - r_bar * d_bar;
+    c = log(c_level);
+
+    % Lagrange multiplier
+    lambda_level = (c_level - (h_level^omega)/omega)^(-gamma);
+    lambda = log(lambda_level);
+
+    % Discount factor
+    beta_fun = (1 + c_level - (h_level^omega)/omega)^(-psi_1);
+
+    % Trade balance and current account
+    tb_y = (y_level - c_level - i_level) / y_level;
+    ca_y = 0;
+
+end;
+
+initval;
+    e = 0;
+end;
+
+steady(maxit=500, solve_algo=0);
+
+shocks;
+    var e; stderr 1;
+end;
+
+stoch_simul(order=1, irf=20, hp_filter=1600);
